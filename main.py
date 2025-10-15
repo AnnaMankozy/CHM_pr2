@@ -27,13 +27,13 @@ def transform_matrix(matrix_coeffs, size):
             exit()
         transformed_row = []
         for j in range(size):
-            value = -matrix_coeffs[i][j]/matrix_coeffs[i][i] if i != j else 0
+            value = -matrix_coeffs[i][j] / matrix_coeffs[i][i] if i != j else 0
             transformed_row.append(value)
         transformed.append(transformed_row)
     return transformed
 
 def compute_free_terms(coeff_matrix, const_terms, size):
-    return [const_terms[i]/coeff_matrix[i][i] for i in range(size)]
+    return [const_terms[i] / coeff_matrix[i][i] for i in range(size)]
 
 def calculate_norms(matrix, size):
     m_norm = max(sum(abs(elem) for elem in row) for row in matrix)
@@ -41,21 +41,53 @@ def calculate_norms(matrix, size):
     euclid_norm = math.sqrt(sum(matrix[i][j]**2 for i in range(size) for j in range(size)))
     return m_norm, one_norm, euclid_norm
 
-def iterative_calculation(transformed_matrix, free_terms, init_guess, size, norm, tolerance):
-    current_guess = init_guess[:]
-    iteration_count = 0
+def check_convergence(norms):
+    m_norm, one_norm, euclid_norm = norms
+    print("\nПеревірка достатньої умови збіжності за еквівалентною системою ( ||a|| < 1 ):")
+    if m_norm < 1:
+        print(f"m-норма = {m_norm:.4f} < 1 (задовольняє)")
+    else:
+        print(f"m-норма = {m_norm:.4f} >= 1 (не задовольняє)")
+        exit()
+    if one_norm < 1:
+        print(f"1-норма = {one_norm:.4f} < 1 (задовольняє)")
+    else:
+        print(f"1-норма = {one_norm:.4f} >= 1 (не задовольняє)")
+        exit()
+    if euclid_norm < 1:
+        print(f"Евклідова норма = {euclid_norm:.4f} < 1 (задовольняє)")
+    else:
+        print(f"Евклідова норма = {euclid_norm:.4f} >= 1 (не задовольняє)")
+        exit()
+
+def iterative_calculation(A1, A2, b, m_norm, tolerance):
+    size = len(b)
+    x_current = b[:]
+    iteration = 0
+
     while True:
+        iteration += 1
+        x_prev = x_current[:]
         max_delta = 0
+
         for i in range(size):
-            new_value = free_terms[i] + sum(transformed_matrix[i][j] * current_guess[j] for j in range(size))
-            diff = abs(new_value - current_guess[i])
+            new_val = b[i]
+            for j in range(i):
+                new_val += A2[i][j] * x_current[j]
+            for j in range(i, size):
+                new_val += A1[i][j] * x_prev[j]
+
+            diff = abs(new_val - x_prev[i])
             max_delta = max(max_delta, diff)
-            current_guess[i] = new_value
-        iteration_count += 1
-        error_estimate = max_delta * norm / (1 - norm) if norm < 1 else max_delta
-        if error_estimate <= tolerance:
+            x_current[i] = new_val
+
+        A1_norm = max(sum(abs(num) for num in row) for row in A1)
+        error_estimate = max_delta * (A1_norm / (1 - m_norm))
+
+        if error_estimate < tolerance:
             break
-    return current_guess, iteration_count, error_estimate
+
+    return x_current, iteration, error_estimate
 
 def main_program():
     while True:
@@ -78,37 +110,22 @@ def main_program():
 
     verify_diagonal_dominance(coeff_matrix)
 
-    # Правильна еквівалентна система для ітерацій
     transformed_matrix = transform_matrix(coeff_matrix, dimension)
     free_terms = compute_free_terms(coeff_matrix, const_terms, dimension)
 
-    print("\nЕквівалентна система (A' та b'):")
-    print("Матриця A':")
+    print("\nЕквівалентна система:")
     for row in transformed_matrix:
         print(" ".join(f"{val:8.4f}" for val in row))
-    
-    print("\nВектор вільних членів b':")
-    for i, val in enumerate(free_terms):
+
+    print("\nВектор вільних членів:")
+    for val in free_terms:
         print(f"{val:8.4f}")
 
-    # --- A1 і A2 ---
-    A1 = [[transformed_matrix[i][j] if j < i else 0 for j in range(dimension)] for i in range(dimension)]
-    A2 = [[transformed_matrix[i][j] if j > i else 0 for j in range(dimension)] for i in range(dimension)]
+    A1 = [[transformed_matrix[i][j] if j > i else 0 for j in range(dimension)] for i in range(dimension)]
+    A2 = [[transformed_matrix[i][j] if j < i else 0 for j in range(dimension)] for i in range(dimension)]
 
-    print("\nМатриця A1 (нижня трикутна без діагоналі):")
-    for row in A1:
-        print(" ".join(f"{val:8.4f}" for val in row))
-
-    print("\nМатриця A2 (верхня трикутна без діагоналі):")
-    for row in A2:
-        print(" ".join(f"{val:8.4f}" for val in row))
-
-    # --- Перевірка норм ---
-    m_norm, one_norm, euclid_norm = calculate_norms(transformed_matrix, dimension)
-    print(f"\nПеревірка умови збіжності за еквівалентною системою ||a|| < 1:")
-    print(f"m-норма = {m_norm:.4f} {'< 1 (задовольняє)' if m_norm < 1 else '> 1 (не задовольняє)'}")
-    print(f"1-норма = {one_norm:.4f} {'< 1 (задовольняє)' if one_norm < 1 else '> 1 (не задовольняє)'}")
-    print(f"Евклідова норма = {euclid_norm:.4f} {'< 1 (задовольняє)' if euclid_norm < 1 else '> 1 (не задовольняє)'}")
+    norms = calculate_norms(transformed_matrix, dimension)
+    check_convergence(norms)
 
     while True:
         try:
@@ -117,16 +134,20 @@ def main_program():
         except ValueError:
             print("Помилка: потрібно ввести число.")
 
-    solution, iterations, final_error = iterative_calculation(
-        transformed_matrix, free_terms, free_terms[:], dimension, m_norm, tolerance
-    )
+    solution, iterations, final_error = iterative_calculation(A1, A2, free_terms, norms[0], tolerance)
 
     print("\nРезультат обчислень:")
     for idx, value in enumerate(solution):
-        print(f"x{idx + 1} = {value:8.4f}")
+        print(f"x{idx + 1} = {value:.4f}")
     print(f"Кількість ітерацій: {iterations}")
-    print(f"Оцінка похибки: {final_error:8.4f}")
+    print(f"Похибка обчислень: {final_error:.4e}")
 
 if __name__ == "__main__":
     main_program()
+
+
+
+
+
+
 
