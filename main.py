@@ -101,9 +101,9 @@ def main_program():
 
     print("\nРезультат обчислень:")
     for idx, value in enumerate(current_guess):
-        print(f"x{idx + 1} = {value:8.5f}")
+        print(f"x{idx + 1} = {value:.4f}")
     print(f"Кількість ітерацій: {iteration_count}")
-    print(f"Оцінка похибки: {current_error}")
+    print(f"Оцінка похибки: {current_error:.4g}")
 
 if __name__ == "__main__":
     main_program()
